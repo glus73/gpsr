@@ -1,0 +1,14 @@
+.ikona-marki {
+    background-image: url('../img/manufacturer.png');
+    display: inline-block;
+    width: 18px; /* Szerokość ikony */
+    height: 18px; /* Wysokość ikony */
+    background-size: contain; /* Dopasowanie rozmiaru */
+}
+.icon-dostawcy {
+    background-image: url('../img/supplier.png');
+    display: inline-block;
+    width: 18px; /* Szerokość ikony */
+    height: 18px; /* Wysokość ikony */
+    background-size: contain; /* Dopasowanie rozmiaru */
+}
