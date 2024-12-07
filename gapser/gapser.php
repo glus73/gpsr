@@ -10,13 +10,13 @@ class Gapser extends Module
     {
         $this->name = 'gapser';
         $this->tab = 'content_management';
-        $this->version = '1.0.1';
+        $this->version = '1.0.2';
         $this->author = 'Krzysztof Towalski';
         $this->need_instance = 0;
         $this->bootstrap = true;
         parent::__construct();
         header('Content-Type: text/html; charset=utf-8');
-        $this->displayName = $this->l('GaPSer - Moduł Zgodności Dyrektywą GPSR dla prestashop');
+        $this->displayName = $this->l('GaPSer - Moduł Zgodności Dyrektywy GPSR');
         $this->description = $this->l('Ten moduł pomoże Twojemu sklepowi zachować zgodność z dyrektywą UE GPSR, która wymaga od Ciebie informowania klientów o polityce bezpieczeństwa producenta produktu.');
         $this->confirmUninstall = $this->l('Na pewno chcesz wywalić?');
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
@@ -29,6 +29,9 @@ class Gapser extends Module
             Configuration::updateValue('GAPSER_WYLACZ_STARE', true, false);          
             Configuration::updateValue('GAPSER_NAZWA_ZAKLADKI_PRODUCENTA', 'Producent', false);
             Configuration::updateValue('GAPSER_NAZWA_ZAKLADKI_DOSTAWCY', 'Dostawca', false);
+            Configuration::updateValue('GAPSER_WLACZ_INFO_STARE', true, false); 
+            Configuration::updateValue('GAPSER_NAZWA_ZAKLADKI_STARY_PRODUKT','GPSR',false);
+            Configuration::updateValue('GAPSER_TEXT_ZAKLADKI_STARY_PRODUKT','<p>Produkty wprowadzone do obrotu przed 12/13/2024 nie muszą posiadać danych GPSR.</p>',true);
 
         return parent::install() && $this->registerHook('displayProductExtraContent');
     }
@@ -40,6 +43,9 @@ class Gapser extends Module
         Configuration::deleteByName('GAPSER_WYLACZ_STARE');
         Configuration::deleteByName('GAPSER_NAZWA_ZAKLADKI_PRODUCENTA');
         Configuration::deleteByName('GAPSER_NAZWA_ZAKLADKI_DOSTAWCY');
+        Configuration::deleteByName('GAPSER_WLACZ_INFO_STARE');
+        Configuration::deleteByName('GAPSER_NAZWA_ZAKLADKI_STARY_PRODUKT');
+        Configuration::deleteByName('GAPSER_TEXT_ZAKLADKI_STARY_PRODUKT');
         return parent::uninstall();
     }
 
@@ -114,7 +120,7 @@ class Gapser extends Module
                         'col' => 3,
                         'type' => 'text',
                         'prefix' => '<i class="icon-dostawcy"></i>',
-                        'desc' => $this->l('Enter a valid email address'),
+                        'desc' => $this->l('Podaj nazwę zakładki dostawcy'),
                         'name' => 'GAPSER_NAZWA_ZAKLADKI_DOSTAWCY',//suplliper
                         'label' => $this->l('Nazwa zakładki dostawcy'),
                     ),
@@ -155,7 +161,42 @@ class Gapser extends Module
                                 'label' => $this->l('Nie')
                             )
                         ),
-                    ),                   
+                    ),
+                    array(
+                        'type' => 'switch',
+                        'label' => $this->l('Włączyć zakładkę z informacją dla produktów z przed 13/12/24?'),
+                        'name' => 'GAPSER_WLACZ_INFO_STARE',
+                        'is_bool' => true,
+                        'desc' => $this->l('Czy wyświetlić ktrótką informację na tan temat?'),
+                        'values' => array(
+                            array(
+                                'id' => 'active_on',
+                                'value' => true,
+                                'label' => $this->l('Tak')
+                            ),
+                            array(
+                                'id' => 'active_off',
+                                'value' => false,
+                                'label' => $this->l('Nie')
+                            )
+                        ),
+                    ),
+                    array(
+                        'col' => 3,
+                        'type' => 'text',
+                        'prefix' => '<i class="ikona-marki"></i>',
+                        'desc' => $this->l('Nazwa zakładki dla produktów z przed 13/12/24'),
+                        'name' => 'GAPSER_NAZWA_ZAKLADKI_STARY_PRODUKT',//brand
+                        'label' => $this->l('Podaj nazwę zakładki dla produktów z przed 13/12/24'),
+                    ), 
+                    array(
+                        'col' => 8,
+                        'type' => 'text',
+                        'desc' => $this->l('Krótkie info dla produktów z przed 13/12/24'),
+                        //'prefix' => '<i class="ikona-marki"></i>',
+                        'name' => 'GAPSER_TEXT_ZAKLADKI_STARY_PRODUKT',//brand
+                        'label' => $this->l('Wprowadź krótkie info dla produktów z przed 13/12/24r.'),
+                    ),                  
                 ),
                 'submit' => array(
                     'title' => $this->l('Save'),
@@ -172,6 +213,9 @@ class Gapser extends Module
             'GAPSER_NAZWA_ZAKLADKI_DOSTAWCY' => Configuration::get('GAPSER_NAZWA_ZAKLADKI_DOSTAWCY', 'Dostawca', false, null, $id_shop),
             'GAPSER_DOSTAWCA_WLACZ' => Configuration::get('GAPSER_DOSTAWCA_WLACZ', true, false, null, $id_shop),
             'GAPSER_WYLACZ_STARE' => Configuration::get('GAPSER_WYLACZ_STARE', true, false, null, $id_shop),
+            'GAPSER_WLACZ_INFO_STARE' => Configuration::get('GAPSER_WLACZ_INFO_STARE'),
+            'GAPSER_NAZWA_ZAKLADKI_STARY_PRODUKT' => Configuration::get('GAPSER_NAZWA_ZAKLADKI_STARY_PRODUKT','Brak danych GPSR',false, null, $id_shop),
+            'GAPSER_TEXT_ZAKLADKI_STARY_PRODUKT' => Configuration::get('GAPSER_TEXT_ZAKLADKI_STARY_PRODUKT', 'Produkty wprowadzone do obrotu przed 12/13/2024 nie muszą posiadać danych GPSR',true, null, $id_shop),
         );
     }
 
@@ -181,23 +225,35 @@ class Gapser extends Module
         $form_values = $this->getConfigFormValues();
         $id_shop= (int) $this->context->shop->id;
         foreach (array_keys($form_values) as $key) {
-            Configuration::updateValue($key, Tools::getValue($key),false, null, $id_shop);
+            Configuration::updateValue($key, Tools::getValue($key),null, null, $id_shop);
         }
     }
 
     public function hookDisplayProductExtraContent($params) {
+        //var_dump($params);
         $id_shop=$this->context->shop->id;
         $idLang = Context::getContext()->language->id;
         if (isset($params['product']) && Validate::isLoadedObject($params['product'])) {
             $extraContents = [];
+            $product = $params['product'];
+            //var_dump($product); 
             if (Configuration::get('GAPSER_WYLACZ_STARE', true, false, null, $id_shop))
             {
             $do_kiedy = new DateTime('2024-12-14 00:00:00');
-            $add_date = new DateTime($params['date_add']);
-            if ($add_date < $do_kiedy) return;
+            $date_add = new DateTime($product->date_add);
+            if ($date_add < $do_kiedy) 
+                if (Configuration::get('GAPSER_WLACZ_INFO_STARE', true, false, null, $id_shop))            
+                     {  $supplierDane = '<h3>Data wprowadzenia produktu: '.htmlspecialchars($product->date_add).'</h3>';
+                        $supplierDane .= Configuration::get('GAPSER_TEXT_ZAKLADKI_STARY_PRODUKT', 'GPRS', false, null, $id_shop);
+                        $extraContents[]=(new PrestaShop\PrestaShop\Core\Product\ProductExtraContent())
+                        ->setTitle(Configuration::get('GAPSER_NAZWA_ZAKLADKI_STARY_PRODUKT', 'GPRS', false, null, $id_shop))
+                        ->setContent($supplierDane);
+                        return $extraContents; 
+                     } 
+            return;
         }
             
-            $product = $params['product'];           
+                      
 
             $supplierId = $product->id_supplier;
             //dostawca
@@ -205,7 +261,7 @@ class Gapser extends Module
                 $supplier = new Supplier($supplierId);
                 $id_adres = Address::getAddressIdBySupplierId($supplierId);
                 $adres = new Address ($id_adres);
-                $supplierDane = '<h3>' . htmlspecialchars(var_dump($params)) . '</h3>';
+                $supplierDane = '<h3>' . htmlspecialchars($adres->name) . '</h3>';
                 $supplierDane .= '<p>Email: ' . htmlspecialchars($adres->other) . '</p>';
                 $supplierDane .= '<p>Adres: ' . htmlspecialchars($adres->address1) . ', ' . htmlspecialchars($adres->postcode) . ' ' . htmlspecialchars($adres->city) . '</p>';
                 $supplierDane .= '<p>Kraj: ' . htmlspecialchars($adres->country) . '</p>';

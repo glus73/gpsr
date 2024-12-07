@@ -1,1 +1,1 @@
-# GaPSer - Moduł Zgodności Dyrektywą GPSR dla prestashop
+# GaPSer - Moduł Zgodności Dyrektywy GPSR
